@@ -33,7 +33,12 @@ namespace AssetStudio
                 case "UnityRaw":
                 case "UnityArchive":
                 case "UnityFS":
-                    return FileType.BundleFile;
+                case "ENCR":
+                    if (FullPath.EndsWith(".block")) {
+                        return FileType.BlockFile;
+                    } else {
+                        return FileType.BundleFile;
+                    }
                 case "UnityWebData1.0":
                     return FileType.WebFile;
                 default:
@@ -98,6 +103,15 @@ namespace AssetStudio
                 return false;
             }
             return true;
+        }
+
+        public long Size()
+        {
+            var pos = Position;
+            var size = BaseStream.Seek(0, SeekOrigin.End);
+            Position = pos;
+            return size;
+
         }
     }
 }

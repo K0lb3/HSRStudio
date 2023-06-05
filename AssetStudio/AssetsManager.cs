@@ -90,6 +90,9 @@ namespace AssetStudio
                 case FileType.ZipFile:
                     LoadZipFile(reader);
                     break;
+                case FileType.BlockFile:
+                    LoadBlockFile(reader);
+                    break;
             }
         }
 
@@ -244,6 +247,46 @@ namespace AssetStudio
             {
                 reader.Dispose();
             }
+        }
+
+        private void LoadBlockFile(FileReader reader)
+        {
+            Logger.Info("Loading " + reader.FullPath);
+            var end = reader.Size();
+            var i = 0;
+            while (reader.Position != end)
+            {
+                string dummyBundlePath = $"{reader.FullPath}_{i}";
+                Logger.Info($"  Block {i} at Offset {reader.Position}");
+                try
+                {
+                    var bundleFile = new BundleFile(reader);
+                    foreach (var file in bundleFile.fileList)
+                    {
+                        var dummyPath = Path.Combine(Path.GetDirectoryName(reader.FullPath), file.fileName);
+                        var subReader = new FileReader(dummyPath, file.stream);
+                        if (subReader.FileType == FileType.AssetsFile)
+                        {
+                            LoadAssetsFromMemory(subReader, dummyPath, bundleFile.m_Header.unityRevision);
+                        }
+                        else
+                        {
+                            resourceFileReaders[file.fileName] = subReader; //TODO
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    var str = $"Error while reading bundle file {reader.FullPath}";
+                    if (dummyBundlePath != null)
+                    {
+                        str += $" from {Path.GetFileName(dummyBundlePath)}";
+                    }
+                    Logger.Error(str, e);
+                }
+            }
+
+            reader.Dispose();
         }
 
         private void LoadZipFile(FileReader reader)

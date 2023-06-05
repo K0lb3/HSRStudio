@@ -28,7 +28,8 @@ namespace AssetStudio
         Lzma,
         Lz4,
         Lz4HC,
-        Lzham
+        Lzham,
+        Lz4Encrypted
     }
 
     public class BundleFile
@@ -70,9 +71,19 @@ namespace AssetStudio
         {
             m_Header = new Header();
             m_Header.signature = reader.ReadStringToNull();
-            m_Header.version = reader.ReadUInt32();
-            m_Header.unityVersion = reader.ReadStringToNull();
-            m_Header.unityRevision = reader.ReadStringToNull();
+            if (m_Header.signature == "ENCR")
+            {
+                // from data.unity3d
+                m_Header.version = 7;
+                m_Header.unityVersion = "5.x.x";
+                m_Header.unityRevision = "2019.4.34.f1";
+            }
+            else
+            {
+                m_Header.version = reader.ReadUInt32();
+                m_Header.unityVersion = reader.ReadStringToNull();
+                m_Header.unityRevision = reader.ReadStringToNull();
+            }
             switch (m_Header.signature)
             {
                 case "UnityArchive":
@@ -98,6 +109,16 @@ namespace AssetStudio
                         ReadBlocks(reader, blocksStream);
                         ReadFiles(blocksStream, reader.FullPath);
                     }
+                    break;
+                case "ENCR":
+                    ReadHeader(reader);
+                    ReadBlocksInfoAndDirectory(reader);
+                    using (var blocksStream = CreateBlocksStream(reader.FullPath))
+                    {
+                        ReadBlocks(reader, blocksStream);
+                        ReadFiles(blocksStream, reader.FullPath);
+                    }
+                    break;
                     break;
             }
         }
@@ -221,7 +242,7 @@ namespace AssetStudio
             m_Header.compressedBlocksInfoSize = reader.ReadUInt32();
             m_Header.uncompressedBlocksInfoSize = reader.ReadUInt32();
             m_Header.flags = (ArchiveFlags)reader.ReadUInt32();
-            if (m_Header.signature != "UnityFS")
+            if ((m_Header.signature != "UnityFS") && (m_Header.signature != "ENCR"))
             {
                 reader.ReadByte();
             }
@@ -230,7 +251,7 @@ namespace AssetStudio
         private void ReadBlocksInfoAndDirectory(EndianBinaryReader reader)
         {
             byte[] blocksInfoBytes;
-            if (m_Header.version >= 7)
+            if ((m_Header.version >= 7) && (m_Header.signature != "ENCR"))
             {
                 reader.AlignStream(16);
             }
@@ -282,7 +303,10 @@ namespace AssetStudio
             }
             using (var blocksInfoReader = new EndianBinaryReader(blocksInfoUncompresseddStream))
             {
-                var uncompressedDataHash = blocksInfoReader.ReadBytes(16);
+                if (m_Header.signature != "ENCR")
+                {
+                    var uncompressedDataHash = blocksInfoReader.ReadBytes(16);
+                }
                 var blocksInfoCount = blocksInfoReader.ReadInt32();
                 m_BlocksInfo = new StorageBlock[blocksInfoCount];
                 for (int i = 0; i < blocksInfoCount; i++)
@@ -333,12 +357,19 @@ namespace AssetStudio
                         }
                     case CompressionType.Lz4:
                     case CompressionType.Lz4HC:
+                    case CompressionType.Lz4Encrypted:
                         {
                             var compressedSize = (int)blockInfo.compressedSize;
                             var compressedBytes = BigArrayPool<byte>.Shared.Rent(compressedSize);
                             reader.Read(compressedBytes, 0, compressedSize);
                             var uncompressedSize = (int)blockInfo.uncompressedSize;
                             var uncompressedBytes = BigArrayPool<byte>.Shared.Rent(uncompressedSize);
+                            if (compressionType == CompressionType.Lz4Encrypted)
+                            {
+                                uint compressedSizeU = (uint)compressedSize;
+                                HSR.DecryptBufferUtils.MhySecurityDecryptBuffer(ref compressedBytes, ref compressedSizeU);
+                                compressedSize = (int)compressedSizeU;
+                            }
                             var numWrite = LZ4Codec.Decode(compressedBytes, 0, compressedSize, uncompressedBytes, 0, uncompressedSize);
                             if (numWrite != uncompressedSize)
                             {
