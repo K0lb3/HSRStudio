@@ -22,6 +22,7 @@ namespace AssetStudio
                 var m_UpdateMode = reader.ReadInt32();
             }
 
+            var m_MotionSkeletonMode = reader.ReadInt32();
             var m_ApplyRootMotion = reader.ReadBoolean();
             if (version[0] == 4 && version[1] >= 5) //4.5 and up - 5.0 down
             {
