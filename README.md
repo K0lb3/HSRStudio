@@ -4,9 +4,10 @@ A fork of AssetStudio with relevant changes for HSR.
 ## TODO
 - [x] Decryption
 - [x] Block Handling
-- [ ] SkinnedMeshRenderer fix?
+- [x] SkinnedMeshRenderer fix
+- [x] Animator fix
 - [ ] AnimationClip fix
-- [ ] Automated Builds
+- [ ] Automated Release
 
 ## Credits
 - [Perfare/AssetStudio](https://github.com/Perfare/AssetStudio)
